@@ -1,0 +1,130 @@
+﻿@page "/"
+
+@using SwissEphNet
+@inject IServiceProvider Services
+
+<PageTitle>Ephemeris Calculator</PageTitle>
+
+<h3>Ephemeris Calculator</h3>
+
+<div class="row">
+    <div class="col-md-6">
+        <label>Day:</label>
+        <input type="number" @bind="Model.Day" min="1" max="31" class="form-control" />
+        <label>Month:</label>
+        <input type="number" @bind="Model.Month" min="1" max="12" class="form-control" />
+        <label>Year:</label>
+        <input type="number" @bind="Model.Year" class="form-control" />
+        <label>Hour:</label>
+        <input type="number" @bind="Model.Hour" min="0" max="23" class="form-control" />
+        <label>Minute:</label>
+        <input type="number" @bind="Model.Minute" min="0" max="59" class="form-control" />
+        <label>Second:</label>
+        <input type="number" @bind="Model.Second" min="0" max="59" class="form-control" />
+        <label>Longitude:</label>
+        <input type="number" @bind="Model.Longitude" class="form-control" />
+        <label>Latitude:</label>
+        <input type="number" @bind="Model.Latitude" class="form-control" />
+        <label>Altitude:</label>
+        <input type="number" @bind="Model.Altitude" class="form-control" />
+        <button class="btn btn-primary mt-2" @onclick="Calculate">Calculate</button>
+    </div>
+    <div class="col-md-6">
+        <label>Result:</label>
+        <textarea class="form-control" rows="20" readonly>@Result</textarea>
+    </div>
+</div>
+
+@code {
+    public class EphemerisInput
+    {
+        public int Day { get; set; } = DateTime.UtcNow.Day;
+        public int Month { get; set; } = DateTime.UtcNow.Month;
+        public int Year { get; set; } = DateTime.UtcNow.Year;
+        public int Hour { get; set; } = DateTime.UtcNow.Hour;
+        public int Minute { get; set; } = DateTime.UtcNow.Minute;
+        public int Second { get; set; } = DateTime.UtcNow.Second;
+        public double Longitude { get; set; } = 82.0061; // Amalapuram
+        public double Latitude { get; set; } = 16.5786;  // Amalapuram
+        public int Altitude { get; set; } = 0;
+    }
+
+    EphemerisInput Model = new EphemerisInput();
+    string Result = string.Empty;
+
+    private static readonly string[] RasiNames = {
+        "Mesh", "Vrish", "Mithun", "Kark", "Simh", "Kany", "Tula", "Vrischik", "Dhanu", "Makar", "Kumbh", "Meen"
+    };
+
+    private string FormatLongitude(double longitude)
+    {
+        int sign = (int)(longitude / 30);
+        double l = longitude % 30.0;
+        int deg = (int)l;
+        double minf = (l - deg) * 60.0;
+        int min = (int)minf;
+        double secf = (minf - min) * 60.0;
+        int sec = (int)secf;
+        return $"{deg:00}° {RasiNames[sign]} {min:00}? {sec:00}?";
+    }
+
+    private void Calculate()
+    {
+        try
+        {
+            Result = "Calculation started...\n";
+            var sweph = new SwissEph();
+            int gregflag = SwissEph.SE_GREG_CAL;
+            double jut = Model.Hour + (Model.Minute / 60.0) + (Model.Second / 3600.0);
+            double jd = sweph.swe_julday(Model.Year, Model.Month, Model.Day, jut, gregflag);
+            Result += $"Julian Day (ET): {jd}\n" +
+                      $"Date: {Model.Day}/{Model.Month}/{Model.Year} {Model.Hour}:{Model.Minute}:{Model.Second}\n" +
+                      $"Longitude: {Model.Longitude}, Latitude: {Model.Latitude}, Altitude: {Model.Altitude}\n\n";
+
+            int[] planetIds = new int[] {
+                SwissEph.SE_SUN, SwissEph.SE_MOON, SwissEph.SE_MERCURY, SwissEph.SE_VENUS, SwissEph.SE_MARS,
+                SwissEph.SE_JUPITER, SwissEph.SE_SATURN, SwissEph.SE_URANUS, SwissEph.SE_NEPTUNE, SwissEph.SE_PLUTO
+            };
+            int iflag = SwissEph.SEFLG_SWIEPH | SwissEph.SEFLG_SPEED;
+            double[] xx = new double[6];
+            string serr = string.Empty;
+            Result += "Planet Positions (Standard Format):\n";
+            foreach (var pid in planetIds)
+            {
+                int rc = sweph.swe_calc(jd, pid, iflag, xx, ref serr);
+                string name = sweph.swe_get_planet_name(pid);
+                if (rc >= 0)
+                {
+                    string longStr = FormatLongitude(xx[0]);
+                    string latStr = xx[1] >= 0 ? $"{Math.Abs(xx[1]):00.00}° N" : $"{Math.Abs(xx[1]):00.00}° S";
+                    string nakshatra = "(Nakshatra)"; // Placeholder
+                    string pada = "(Pada)"; // Placeholder
+                    string lord = "(Lord/Sub)"; // Placeholder
+                    string fullDeg = xx[0].ToString("F2");
+                    string speed = xx[3].ToString("F2");
+                    string ra = "(RA)"; // Placeholder
+                    string dec = "(Dec)"; // Placeholder
+                    Result += $"{name}\n" +
+                              $"Longitude: {longStr}\n" +
+                              $"Nakshatra: {nakshatra}\n" +
+                              $"Padam: {pada}\n" +
+                              $"Lord/Sub Lord: {lord}\n" +
+                              $"Full Degree: {fullDeg}\n" +
+                              $"Latitude/Shara: {latStr}\n" +
+                              $"Speed: {speed}\n" +
+                              $"Right Ascension: {ra}\n" +
+                              $"Declination/Kranti: {dec}\n\n";
+                }
+                else
+                {
+                    Result += $"{name}: Error: {serr}\n";
+                }
+            }
+            sweph.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Result = $"Error: {ex.Message}";
+        }
+    }
+}

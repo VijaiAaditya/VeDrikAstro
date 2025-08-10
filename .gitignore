@@ -1,0 +1,9 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/VeDrik.Astro/.vs/VeDrik.Astro
+/VeDrik.Astro/bin/Debug/net9.0
+/VeDrik.Astro/obj
+/VeDrik.Astro/wwwroot/lib/bootstrap/dist
