@@ -5,34 +5,165 @@
 
 <PageTitle>Ephemeris Calculator</PageTitle>
 
-<h3>Ephemeris Calculator</h3>
+<div class="container-fluid">
+    <h3 class="text-center mb-4">Ephemeris Calculator</h3>
 
-<div class="row">
-    <div class="col-md-6">
-        <label>Day:</label>
-        <input type="number" @bind="Model.Day" min="1" max="31" class="form-control" />
-        <label>Month:</label>
-        <input type="number" @bind="Model.Month" min="1" max="12" class="form-control" />
-        <label>Year:</label>
-        <input type="number" @bind="Model.Year" class="form-control" />
-        <label>Hour:</label>
-        <input type="number" @bind="Model.Hour" min="0" max="23" class="form-control" />
-        <label>Minute:</label>
-        <input type="number" @bind="Model.Minute" min="0" max="59" class="form-control" />
-        <label>Second:</label>
-        <input type="number" @bind="Model.Second" min="0" max="59" class="form-control" />
-        <label>Longitude:</label>
-        <input type="number" @bind="Model.Longitude" class="form-control" />
-        <label>Latitude:</label>
-        <input type="number" @bind="Model.Latitude" class="form-control" />
-        <label>Altitude:</label>
-        <input type="number" @bind="Model.Altitude" class="form-control" />
-        <button class="btn btn-primary mt-2" @onclick="Calculate">Calculate</button>
+    <!-- Input Section as Table -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Input Parameters</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-borderless">
+                <tbody>
+                    <tr>
+                        <td class="col-2"><label class="form-label fw-bold">Date & Time:</label></td>
+                        <td class="col-1">
+                            <label class="form-label">Day:</label>
+                            <input type="number" @bind="Model.Day" min="1" max="31" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-1">
+                            <label class="form-label">Month:</label>
+                            <input type="number" @bind="Model.Month" min="1" max="12" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-1">
+                            <label class="form-label">Year:</label>
+                            <input type="number" @bind="Model.Year" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-1">
+                            <label class="form-label">Hour:</label>
+                            <input type="number" @bind="Model.Hour" min="0" max="23" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-1">
+                            <label class="form-label">Minute:</label>
+                            <input type="number" @bind="Model.Minute" min="0" max="59" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-1">
+                            <label class="form-label">Second:</label>
+                            <input type="number" @bind="Model.Second" min="0" max="59" class="form-control form-control-sm" />
+                        </td>
+                        <td class="col-4"></td>
+                    </tr>
+                    <tr>
+                        <td><label class="form-label fw-bold">Location:</label></td>
+                        <td>
+                            <label class="form-label">Longitude:</label>
+                            <input type="number" @bind="Model.Longitude" @bind:after="OnLocationChanged" step="0.0001" class="form-control form-control-sm" />
+                        </td>
+                        <td>
+                            <label class="form-label">Latitude:</label>
+                            <input type="number" @bind="Model.Latitude" @bind:after="OnLocationChanged" step="0.0001" class="form-control form-control-sm" />
+                        </td>
+                        <td>
+                            <label class="form-label">Altitude:</label>
+                            <input type="number" @bind="Model.Altitude" class="form-control form-control-sm" />
+                        </td>
+                        <td>
+                            <label class="form-label">Time Zone:</label>
+                            <div class="d-flex">
+                                <select @bind="Model.TimeZone" class="form-select form-select-sm me-1">
+                                    <option value="@CalculatedTimeZone">Auto: @GetTimeZoneDisplay(CalculatedTimeZone)</option>
+                                    <option value="5.5">IST (+5:30)</option>
+                                    <option value="0">UTC (+0:00)</option>
+                                    <option value="-5">EST (-5:00)</option>
+                                    <option value="1">CET (+1:00)</option>
+                                    <option value="8">CST (+8:00)</option>
+                                    <option value="9">JST (+9:00)</option>
+                                    <option value="-8">PST (-8:00)</option>
+                                    <option value="-3">BRT (-3:00)</option>
+                                </select>
+                                <input type="checkbox" @bind="Model.UseLocalMeanTime" class="form-check-input mt-1" title="Use Local Mean Time" />
+                            </div>
+                            <small class="text-muted">@(Model.UseLocalMeanTime ? "Using Local Mean Time" : "Using Standard Time Zone")</small>
+                        </td>
+                        <td>
+                            <label class="form-label">Ayanamsa:</label>
+                            <select @bind="Model.AyanamsaType" class="form-select form-select-sm">
+                                <option value="@SwissEph.SE_SIDM_LAHIRI">Lahiri</option>
+                                <option value="@SwissEph.SE_SIDM_KRISHNAMURTI">KP</option>
+                                <option value="@SwissEph.SE_SIDM_RAMAN">Raman</option>
+                                <option value="@SwissEph.SE_SIDM_FAGAN_BRADLEY">Fagan Bradley</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary btn-lg mt-3" @onclick="Calculate">
+                                <i class="bi bi-calculator"></i> Calculate Ephemeris
+                            </button>
+                        </td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
-    <div class="col-md-6">
-        <label>Result:</label>
-        <textarea class="form-control" rows="20" readonly>@Result</textarea>
-    </div>
+
+    <!-- Output Section as Table -->
+    @if (!string.IsNullOrEmpty(Result))
+    {
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Planetary Positions - Sidereal (Vedic Astrology)</h5>
+            </div>
+            <div class="card-body">
+                @if (PlanetaryData != null && PlanetaryData.Any())
+                {
+                    <div class="mb-3">
+                        <strong>Calculation Details:</strong><br />
+                        <small class="text-muted">
+                            Julian Day (ET): @JulianDay.ToString("F6")<br />
+                            Julian Day (UT): @JulianDayUT.ToString("F6")<br />
+                            Local Time: @Model.Day/@Model.Month/@Model.Year @Model.Hour:@Model.Minute:@Model.Second<br />
+                            Time Zone: @GetTimeZoneDisplay(EffectiveTimeZone) @(Model.UseLocalMeanTime ? "(Local Mean Time)" : "(Standard Time)")<br />
+                            UTC Time: @UtcDateTime.ToString("dd/MM/yyyy HH:mm:ss")<br />
+                            Location: @Model.Longitude°, @Model.Latitude°, @Model.Altitude m<br />
+                            Ayanamsa: @AyanamsaValue.ToString("F6")° (@GetAyanamsaName())
+                        </small>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-sm">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Planet</th>
+                                    <th>Longitude (Sidereal)</th>
+                                    <th>Nakshatra</th>
+                                    <th>Pada</th>
+                                    <th>Raw Longitude</th>
+                                    <th>Latitude/Shara</th>
+                                    <th>Speed deg/day</th>
+                                    <th>Right Ascension</th>
+                                    <th>Declination/Kranti</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var planet in PlanetaryData)
+                                {
+                                    <tr>
+                                        <td class="fw-bold">@planet.Name</td>
+                                        <td>@planet.Longitude</td>
+                                        <td><span class="badge bg-info text-wrap">@planet.Nakshatra</span></td>
+                                        <td><span class="badge bg-secondary">@planet.Pada</span></td>
+                                        <td>@planet.RawLongitude</td>
+                                        <td>@planet.Latitude</td>
+                                        <td>@planet.Speed</td>
+                                        <td>@planet.RightAscension</td>
+                                        <td>@planet.Declination</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <h6>Error occurred during calculation:</h6>
+                        @ErrorMessage
+                    </div>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -47,17 +178,131 @@
         public double Longitude { get; set; } = 82.0061; // Amalapuram
         public double Latitude { get; set; } = 16.5786;  // Amalapuram
         public int Altitude { get; set; } = 0;
+        public double TimeZone { get; set; } = 5.5; // IST
+        public int AyanamsaType { get; set; } = SwissEph.SE_SIDM_LAHIRI;
+        public bool UseLocalMeanTime { get; set; } = false;
+    }
+
+    public class PlanetData
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Longitude { get; set; } = string.Empty;
+        public string Nakshatra { get; set; } = string.Empty;
+        public string Pada { get; set; } = string.Empty;
+        public string RawLongitude { get; set; } = string.Empty;
+        public string Latitude { get; set; } = string.Empty;
+        public string Speed { get; set; } = string.Empty;
+        public string RightAscension { get; set; } = string.Empty;
+        public string Declination { get; set; } = string.Empty;
     }
 
     EphemerisInput Model = new EphemerisInput();
     string Result = string.Empty;
+    string ErrorMessage = string.Empty;
+    double JulianDay = 0;
+    double JulianDayUT = 0;
+    double AyanamsaValue = 0;
+    double CalculatedTimeZone = 5.5;
+    double EffectiveTimeZone = 5.5;
+    DateTime UtcDateTime;
+    List<PlanetData> PlanetaryData = new List<PlanetData>();
+
+    protected override void OnInitialized()
+    {
+        OnLocationChanged();
+    }
+
+    private void OnLocationChanged()
+    {
+        CalculatedTimeZone = CalculateTimeZoneFromLongitude(Model.Longitude);
+        // Auto-set timezone to calculated value if not manually overridden
+        if (Model.TimeZone == 5.5) // Default IST
+        {
+            Model.TimeZone = CalculatedTimeZone;
+        }
+        StateHasChanged();
+    }
+
+    private double CalculateTimeZoneFromLongitude(double longitude)
+    {
+        // Basic longitude-based timezone calculation
+        // Each 15° of longitude represents 1 hour of time difference from UTC
+        double roughTimeZone = Math.Round(longitude / 15.0 * 2) / 2; // Round to nearest 0.5 hour
+        
+        // Apply some practical adjustments for major regions
+        if (longitude >= 67.5 && longitude <= 97.5) // India region
+            return 5.5; // IST
+        else if (longitude >= 97.5 && longitude <= 127.5) // Southeast Asia
+            return longitude <= 112.5 ? 7.0 : 8.0; // Thailand/Vietnam or China/Singapore
+        else if (longitude >= 120 && longitude <= 150) // Japan/Korea region
+            return 9.0;
+        else if (longitude >= -125 && longitude <= -60) // North America
+        {
+            if (longitude >= -125 && longitude <= -105) return -8.0; // PST
+            else if (longitude >= -105 && longitude <= -90) return -7.0; // MST
+            else if (longitude >= -90 && longitude <= -75) return -6.0; // CST
+            else return -5.0; // EST
+        }
+        else if (longitude >= -15 && longitude <= 45) // Europe/Africa
+        {
+            if (longitude >= -15 && longitude <= 7.5) return 0.0; // GMT
+            else if (longitude >= 7.5 && longitude <= 22.5) return 1.0; // CET
+            else return 2.0; // EET
+        }
+        
+        return roughTimeZone;
+    }
+
+    private double CalculateLocalMeanTime(double longitude)
+    {
+        // Local Mean Time: 4 minutes per degree of longitude from GMT
+        return longitude / 15.0; // Convert longitude to hours
+    }
+
+    private string GetTimeZoneDisplay(double timeZone)
+    {
+        if (timeZone >= 0)
+            return $"+{timeZone:F1}";
+        else
+            return $"{timeZone:F1}";
+    }
 
     private static readonly string[] RasiNames = {
         "Mesh", "Vrish", "Mithun", "Kark", "Simh", "Kany", "Tula", "Vrischik", "Dhanu", "Makar", "Kumbh", "Meen"
     };
 
+    private static readonly string[] NakshatraNames = {
+        "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashirsha", "Ardra", "Punarvasu", "Pushya",
+        "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Swati", "Vishakha",
+        "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishtha",
+        "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+    };
+
+    private static readonly string[] NakshatraRulers = {
+        "Ketu", "Shukra", "Surya", "Chandra", "Mangal", "Rahu", "Guru", "Shani",
+        "Budha", "Ketu", "Shukra", "Surya", "Chandra", "Mangal", "Rahu", "Guru",
+        "Shani", "Budha", "Ketu", "Shukra", "Surya", "Chandra", "Mangal", "Rahu",
+        "Guru", "Shani", "Budha"
+    };
+
+    private string GetAyanamsaName()
+    {
+        return Model.AyanamsaType switch
+        {
+            SwissEph.SE_SIDM_LAHIRI => "Lahiri",
+            SwissEph.SE_SIDM_KRISHNAMURTI => "Krishnamurti",
+            SwissEph.SE_SIDM_RAMAN => "Raman",
+            SwissEph.SE_SIDM_FAGAN_BRADLEY => "Fagan Bradley",
+            _ => "Unknown"
+        };
+    }
+
     private string FormatLongitude(double longitude)
     {
+        // Ensure longitude is positive
+        while (longitude < 0) longitude += 360;
+        while (longitude >= 360) longitude -= 360;
+
         int sign = (int)(longitude / 30);
         double l = longitude % 30.0;
         int deg = (int)l;
@@ -65,66 +310,165 @@
         int min = (int)minf;
         double secf = (minf - min) * 60.0;
         int sec = (int)secf;
-        return $"{deg:00}° {RasiNames[sign]} {min:00}? {sec:00}?";
+        return $"{deg:00}° {RasiNames[sign]} {min:00}' {sec:00}\"";
+    }
+
+    private string GetNakshatra(double longitude, out int pada)
+    {
+        // Ensure longitude is positive
+        while (longitude < 0) longitude += 360;
+        while (longitude >= 360) longitude -= 360;
+
+        // Each nakshatra is 13°20' (13.333...)
+        double nakshatraSpan = 360.0 / 27.0;
+        int nakshatraIndex = (int)(longitude / nakshatraSpan);
+        
+        // Calculate pada (1-4)
+        double positionInNakshatra = longitude % nakshatraSpan;
+        pada = (int)(positionInNakshatra / (nakshatraSpan / 4.0)) + 1;
+        
+        if (nakshatraIndex >= 0 && nakshatraIndex < 27)
+        {
+            return $"{NakshatraNames[nakshatraIndex]} {pada}, {NakshatraRulers[nakshatraIndex]}";
+        }
+        
+        pada = 1;
+        return "Unknown";
+    }
+
+    private string FormatCoordinate(double coord, bool isLatitude = false)
+    {
+        string direction = "";
+        if (isLatitude)
+        {
+            direction = coord >= 0 ? " N" : " S";
+        }
+        else
+        {
+            direction = coord >= 0 ? " E" : " W";
+        }
+        
+        double absCoord = Math.Abs(coord);
+        int deg = (int)absCoord;
+        double minf = (absCoord - deg) * 60.0;
+        int min = (int)minf;
+        double secf = (minf - min) * 60.0;
+        
+        return $"{deg:00}.{secf:00}{direction}";
+    }
+
+    private DateTime CalculateProperDateTime(out double utcHour)
+    {
+        // Determine effective timezone
+        EffectiveTimeZone = Model.UseLocalMeanTime ? CalculateLocalMeanTime(Model.Longitude) : Model.TimeZone;
+        
+        // Convert local time to UTC
+        utcHour = Model.Hour + (Model.Minute / 60.0) + (Model.Second / 3600.0) - EffectiveTimeZone;
+        
+        // Create local datetime first
+        var localDateTime = new DateTime(Model.Year, Model.Month, Model.Day, Model.Hour, Model.Minute, Model.Second);
+        
+        // Convert to UTC using the effective timezone
+        var utcDateTime = localDateTime.AddHours(-EffectiveTimeZone);
+        
+        return utcDateTime;
     }
 
     private void Calculate()
     {
         try
         {
-            Result = "Calculation started...\n";
+            ErrorMessage = string.Empty;
+            PlanetaryData.Clear();
+            
             var sweph = new SwissEph();
-            int gregflag = SwissEph.SE_GREG_CAL;
-            double jut = Model.Hour + (Model.Minute / 60.0) + (Model.Second / 3600.0);
-            double jd = sweph.swe_julday(Model.Year, Model.Month, Model.Day, jut, gregflag);
-            Result += $"Julian Day (ET): {jd}\n" +
-                      $"Date: {Model.Day}/{Model.Month}/{Model.Year} {Model.Hour}:{Model.Minute}:{Model.Second}\n" +
-                      $"Longitude: {Model.Longitude}, Latitude: {Model.Latitude}, Altitude: {Model.Altitude}\n\n";
+            
+            // Calculate proper UTC time
+            double utcHour;
+            UtcDateTime = CalculateProperDateTime(out utcHour);
+            
+            JulianDayUT = sweph.swe_julday(UtcDateTime.Year, UtcDateTime.Month, UtcDateTime.Day, 
+                UtcDateTime.Hour + (UtcDateTime.Minute / 60.0) + (UtcDateTime.Second / 3600.0), SwissEph.SE_GREG_CAL);
+            
+            // Convert to Ephemeris Time
+            string serr = string.Empty;
+            JulianDay = JulianDayUT + sweph.swe_deltat(JulianDayUT);
 
+            // Set ayanamsa
+            sweph.swe_set_sid_mode(Model.AyanamsaType, 0, 0);
+            
+            // Get ayanamsa value
+            AyanamsaValue = sweph.swe_get_ayanamsa(JulianDay);
+
+            // Calculate planetary positions
             int[] planetIds = new int[] {
                 SwissEph.SE_SUN, SwissEph.SE_MOON, SwissEph.SE_MERCURY, SwissEph.SE_VENUS, SwissEph.SE_MARS,
-                SwissEph.SE_JUPITER, SwissEph.SE_SATURN, SwissEph.SE_URANUS, SwissEph.SE_NEPTUNE, SwissEph.SE_PLUTO
+                SwissEph.SE_JUPITER, SwissEph.SE_SATURN, SwissEph.SE_URANUS, SwissEph.SE_NEPTUNE, SwissEph.SE_PLUTO,
+                SwissEph.SE_MEAN_NODE, SwissEph.SE_MEAN_NODE // Rahu and Ketu (Mean Node)
             };
-            int iflag = SwissEph.SEFLG_SWIEPH | SwissEph.SEFLG_SPEED;
+
+            string[] planetNames = {
+                "Surya (Su)", "Chandra (Ch)", "Budha (Bu)", "Shukra (Sh)", "Mangal (Ma)",
+                "Guru (Gu)", "Shani (Sa)", "Arun (Ur)", "Varun (Ne)", "Yam (Pl)",
+                "Rahu (Ra)", "Ketu (Ke)"
+            };
+
+            int iflag = SwissEph.SEFLG_SIDEREAL | SwissEph.SEFLG_SPEED;
             double[] xx = new double[6];
-            string serr = string.Empty;
-            Result += "Planet Positions (Standard Format):\n";
-            foreach (var pid in planetIds)
+            double[] xxEqu = new double[6]; // For equatorial coordinates
+
+            for (int i = 0; i < planetIds.Length; i++)
             {
-                int rc = sweph.swe_calc(jd, pid, iflag, xx, ref serr);
-                string name = sweph.swe_get_planet_name(pid);
+                int pid = planetIds[i];
+                string planetName = i < planetNames.Length ? planetNames[i] : sweph.swe_get_planet_name(pid);
+                
+                // Calculate sidereal position
+                int rc = sweph.swe_calc(JulianDay, pid, iflag, xx, ref serr);
+                
+                // Calculate equatorial coordinates for RA and Declination
+                int rcEqu = sweph.swe_calc(JulianDay, pid, SwissEph.SEFLG_EQUATORIAL | SwissEph.SEFLG_SPEED, xxEqu, ref serr);
+                
                 if (rc >= 0)
                 {
-                    string longStr = FormatLongitude(xx[0]);
-                    string latStr = xx[1] >= 0 ? $"{Math.Abs(xx[1]):00.00}° N" : $"{Math.Abs(xx[1]):00.00}° S";
-                    string nakshatra = "(Nakshatra)"; // Placeholder
-                    string pada = "(Pada)"; // Placeholder
-                    string lord = "(Lord/Sub)"; // Placeholder
-                    string fullDeg = xx[0].ToString("F2");
-                    string speed = xx[3].ToString("F2");
-                    string ra = "(RA)"; // Placeholder
-                    string dec = "(Dec)"; // Placeholder
-                    Result += $"{name}\n" +
-                              $"Longitude: {longStr}\n" +
-                              $"Nakshatra: {nakshatra}\n" +
-                              $"Padam: {pada}\n" +
-                              $"Lord/Sub Lord: {lord}\n" +
-                              $"Full Degree: {fullDeg}\n" +
-                              $"Latitude/Shara: {latStr}\n" +
-                              $"Speed: {speed}\n" +
-                              $"Right Ascension: {ra}\n" +
-                              $"Declination/Kranti: {dec}\n\n";
+                    double siderealLongitude = xx[0];
+                    
+                    // Special handling for Ketu (opposite of Rahu)
+                    if (pid == SwissEph.SE_MEAN_NODE && i == planetIds.Length - 1)
+                    {
+                        siderealLongitude = (siderealLongitude + 180) % 360;
+                        planetName = "Ketu (Ke)";
+                    }
+
+                    int pada;
+                    string nakshatra = GetNakshatra(siderealLongitude, out pada);
+
+                    var planetData = new PlanetData
+                    {
+                        Name = planetName,
+                        Longitude = FormatLongitude(siderealLongitude),
+                        Nakshatra = nakshatra,
+                        Pada = pada.ToString(),
+                        RawLongitude = siderealLongitude.ToString("F2"),
+                        Latitude = FormatCoordinate(xx[1], true),
+                        Speed = xx[3].ToString("F2"),
+                        RightAscension = rcEqu >= 0 ? FormatCoordinate(xxEqu[0]) : "N/A",
+                        Declination = rcEqu >= 0 ? FormatCoordinate(xxEqu[1], true) : "N/A"
+                    };
+                    PlanetaryData.Add(planetData);
                 }
                 else
                 {
-                    Result += $"{name}: Error: {serr}\n";
+                    ErrorMessage += $"{planetName}: Error: {serr}\n";
                 }
             }
+            
+            Result = "Calculation completed successfully";
             sweph.Dispose();
         }
         catch (Exception ex)
         {
-            Result = $"Error: {ex.Message}";
+            ErrorMessage = $"Error: {ex.Message}";
+            Result = string.Empty;
         }
     }
 }
