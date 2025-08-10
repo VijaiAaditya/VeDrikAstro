@@ -1,0 +1,121 @@
+@page "/Panchang"
+
+@using SwissEphNet
+@using VeDrik.Astro.Data
+
+<PageTitle>Vedic Day Info</PageTitle>
+
+<div class="container-fluid">
+    <h3 class="text-center mb-4">Vedic Day Information</h3>
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Today's Panchang Categories</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <tbody>
+                    <tr><th>Tithi   </th><td>@tithi</td></tr>
+                    <tr><th>Vara    </th><td>@weekday</td></tr>
+                    <tr><th>Nakshatra </th><td>@nakshatra</td></tr>
+                    <tr><th>Yoga   </th><td>@yoga</td></tr>
+                    <tr><th>Karana </th><td>@karana</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Other Vedic Details</h5>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <tbody>
+                    <tr><th>Vedic Month</th><td>@vedicMonth</td></tr>
+                    <tr><th>Hora (Current)</th><td>@hora</td></tr>
+                    <tr><th>Hora Start</th><td>@horaStart - @horaEnd </td></tr>
+                    <tr><th>Lagna (Ascendant)</th><td>@lagna</td></tr>
+                    <tr><th>Rahu Kaal</th><td>@rahuKaal</td></tr>
+                    <tr><th>Yama Kaal</th><td>@yamaKaal</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Location and time settings (can be parameterized)
+    double longitude = 82.0061; // Amalapuram
+    double latitude = 16.5786;
+    double timezone = 5.5; // IST
+    DateTime now;
+
+    string weekday = string.Empty;
+    string vedicMonth = string.Empty;
+    string tithi = string.Empty;
+    string hora = string.Empty;
+    string horaStart = string.Empty;
+    string horaEnd = string.Empty;
+    string lagna = string.Empty;
+    string rahuKaal = string.Empty;
+    string yamaKaal = string.Empty;
+    string nakshatra = string.Empty;
+    string yoga = string.Empty;
+    string karana = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        now = DateTime.UtcNow.AddHours(timezone);
+        CalculateVedicDayInfo();
+    }
+
+    void CalculateVedicDayInfo()
+    {
+        // Weekday and Vedic Month using tuple deconstruction
+        (weekday, vedicMonth) = (VedicConstants.Weekdays[(int)now.DayOfWeek], VedicConstants.VedicMonths[(now.Month - 1) % 12]);
+
+        // Tithi calculation (approximate)
+        var sweph = new SwissEph();
+        double jut = now.Hour + (now.Minute / 60.0) + (now.Second / 3600.0);
+        double jd = sweph.swe_julday(now.Year, now.Month, now.Day, jut, SwissEph.SE_GREG_CAL);
+        double[] sun = new double[6], moon = new double[6];
+        string serr = string.Empty;
+        sweph.swe_calc(jd, SwissEph.SE_SUN, SwissEph.SEFLG_SIDEREAL, sun, ref serr);
+        sweph.swe_calc(jd, SwissEph.SE_MOON, SwissEph.SEFLG_SIDEREAL, moon, ref serr);
+        double elong = (moon[0] - sun[0] + 360) % 360;
+        int tithiNum = (int)(elong / 12.0) + 1;
+        tithi = VedicConstants.TithiNames[tithiNum <= 15 ? tithiNum - 1 : 14];
+
+        // Nakshatra calculation
+        int nakshatraNum = (int)(moon[0] / (360.0 / 27)) + 1;
+        nakshatra = VedicConstants.NakshatraNames[(nakshatraNum - 1) % 27];
+
+        // Yoga calculation
+        double yogaValue = (sun[0] + moon[0]) % 360;
+        int yogaNum = (int)(yogaValue / (360.0 / 27)) + 1;
+        yoga = VedicConstants.YogaNames[(yogaNum - 1) % 27];
+
+        // Karana calculation
+        int karanaNum = ((int)((elong % 360) / 6.0)) % 11;
+        karana = VedicConstants.KaranaNames[karanaNum];
+
+        // Hora calculation (simple)
+        int sunriseHour = 6; // Assume 6 AM local sunrise
+        int horaIndex = ((now.Hour - sunriseHour + 24) % 24);
+        int horaLordIndex = horaIndex % 7;
+        hora = VedicConstants.HoraLords[horaLordIndex];
+        DateTime horaStartTime = now.Date.AddHours(sunriseHour + horaIndex);
+        DateTime horaEndTime = horaStartTime.AddHours(1);
+        (horaStart, horaEnd) = (horaStartTime.ToString("HH:mm"), horaEndTime.ToString("HH:mm"));
+
+        // Lagna calculation (approximate)
+        int lagnaIndex = ((now.Hour - sunriseHour + 24) % 12);
+        lagna = VedicConstants.RasiNames[lagnaIndex];
+
+        // Rahu Kaal & Yama Kaal (IST, simple)
+        int weekdayIndex = (int)now.DayOfWeek;
+        rahuKaal = VedicConstants.RahuKaalTable[weekdayIndex];
+        yamaKaal = VedicConstants.YamaKaalTable[weekdayIndex];
+
+        sweph.Dispose();
+    }
+}
