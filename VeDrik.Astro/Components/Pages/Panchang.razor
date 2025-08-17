@@ -10,6 +10,7 @@
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Today's Panchang Categories</h5>
+            <h6>  @horaNote </h6>
         </div>
         <div class="card-body">
             <table class="table table-bordered">
@@ -70,9 +71,7 @@
                     <table class="table table-sm table-bordered">
                         <thead class="table-light">
                             <tr>
-                                <th>#</th>
-                                <th>Start</th>
-                                <th>End</th>
+                                <th>Start - End</th>
                                 <th>Lord</th>
                                 <th>Day/Night</th>
                             </tr>
@@ -81,9 +80,7 @@
                             @foreach (var h in horaSchedule)
                             {
                                 <tr>
-                                    <td>@h.Index</td>
-                                    <td>@h.Start</td>
-                                    <td>@h.End</td>
+                                    <td>@h.Start - @h.End</td>
                                     <td><span class="badge bg-info">@h.Lord</span></td>
                                     <td>@(h.IsDay ? "Day" : "Night")</td>
                                 </tr>
@@ -119,6 +116,11 @@
     string vardhyam = string.Empty;
     string dhurmuhurtham = string.Empty;
 
+    // sunrise/sunset cache
+    DateTime sunriseCached;
+    DateTime sunsetCached;
+    DateTime nextSunriseCached;
+
     // Hora schedule support
     class HoraPeriod
     {
@@ -138,14 +140,15 @@
         now = DateTime.UtcNow.AddHours(timezone);
         CalculateVedicDayInfo();
         BuildHoraSchedule();
+        ComputeDayAuspiciousWindows();
     }
 
     void CalculateVedicDayInfo()
     {
-        // Weekday and Vedic Month using tuple deconstruction
+        // Weekday and Vedic Month
         (weekday, vedicMonth) = (VedicConstants.Weekdays[(int)now.DayOfWeek], VedicConstants.VedicMonths[(now.Month - 1) % 12]);
 
-        // Sun/Moon calculations for all Panchang elements
+        // Sun/Moon calculations for Panchang elements
         var sweph = new SwissEph();
         double jut = now.Hour + (now.Minute / 60.0) + (now.Second / 3600.0);
         double jd = sweph.swe_julday(now.Year, now.Month, now.Day, jut, SwissEph.SE_GREG_CAL);
@@ -154,7 +157,7 @@
         sweph.swe_calc(jd, SwissEph.SE_SUN, SwissEph.SEFLG_SIDEREAL, sun, ref serr);
         sweph.swe_calc(jd, SwissEph.SE_MOON, SwissEph.SEFLG_SIDEREAL, moon, ref serr);
 
-        // Tithi calculation (corrected)
+        // Tithi
         string[] tithiNames = new string[] {
             "Pratipada (Shukla)", "Dvitiya (Shukla)", "Tritiya (Shukla)", "Chaturthi (Shukla)", "Panchami (Shukla)", "Shashthi (Shukla)", "Saptami (Shukla)", "Ashtami (Shukla)", "Navami (Shukla)", "Dashami (Shukla)", "Ekadashi (Shukla)", "Dwadashi (Shukla)", "Trayodashi (Shukla)", "Chaturdashi (Shukla)", "Purnima",
             "Pratipada (Krishna)", "Dvitiya (Krishna)", "Tritiya (Krishna)", "Chaturthi (Krishna)", "Panchami (Krishna)", "Shashthi (Krishna)", "Saptami (Krishna)", "Ashtami (Krishna)", "Navami (Krishna)", "Dashami (Krishna)", "Ekadashi (Krishna)", "Dwadashi (Krishna)", "Trayodashi (Krishna)", "Chaturdashi (Krishna)", "Amavasya"
@@ -164,58 +167,27 @@
         if (tithiNum > 30) tithiNum = 30;
         tithi = tithiNames[tithiNum - 1];
 
-        // Nakshatra calculation
+        // Nakshatra
         int nakshatraNum = (int)(moon[0] / (360.0 / 27)) + 1;
         nakshatra = VedicConstants.NakshatraNames[(nakshatraNum - 1) % 27];
 
-        // Yoga calculation
+        // Yoga
         double yogaValue = (sun[0] + moon[0]) % 360;
         int yogaNum = (int)(yogaValue / (360.0 / 27)) + 1;
         yoga = VedicConstants.YogaNames[(yogaNum - 1) % 27];
 
-        // Karana calculation
+        // Karana
         int karanaNum = ((int)((elong % 360) / 6.0)) % 11;
         karana = VedicConstants.KaranaNames[karanaNum];
 
-        // Hora calculation (simple placeholder; accurate one is computed from schedule below)
+        // Hora display is set from schedule
         hora = ""; horaStart = ""; horaEnd = "";
 
-        // Lagna calculation (approximate)
+        // Lagna (approximate)
         int lagnaIndex = (((now.Hour - 6) + 24) % 12);
         lagna = VedicConstants.RasiNames[lagnaIndex];
 
-        // Rahu Kaal & Yama Kaal (IST, simple)
-        int weekdayIndex = (int)now.DayOfWeek;
-        rahuKaal = VedicConstants.RahuKaalTable[weekdayIndex];
-        yamaKaal = VedicConstants.YamaKaalTable[weekdayIndex];
-
         sweph.Dispose();
-
-        // Dhurmuhurtham calculation (IST)
-        if (weekday == "Friday")
-        {
-            dhurmuhurtham = "None";
-        }
-        else if (weekday == "Wednesday")
-        {
-            dhurmuhurtham = "11:52-12:40, 15:08-15:56";
-        }
-        else
-        {
-            dhurmuhurtham = "08:24-09:12, 12:36-13:24";
-        }
-
-        // Vardhyam calculation (IST)
-        vardhyam = "09:12-10:36, 13:24-14:48";
-
-        // Subha Samaya calculation (IST)
-        // Exclude Rahu Kaal, Yama Kaal, Dhurmuhurtham
-        var allPeriods = new List<string> { "06:00-07:30", "07:30-09:00", "08:24-09:12", "09:12-10:36", "10:36-12:00", "12:00-13:30", "12:36-13:24", "13:24-14:48", "13:30-15:00", "14:48-16:12", "15:00-16:30", "15:08-15:56", "16:30-18:00" };
-        var excludePeriods = new List<string> { rahuKaal, yamaKaal };
-        if (dhurmuhurtham != "None")
-            excludePeriods.AddRange(dhurmuhurtham.Split(", "));
-        var subhaList = allPeriods.Except(excludePeriods).ToList();
-        subhaSamaya = string.Join(", ", subhaList);
     }
 
     string GetDayLordName(DateTime localDate)
@@ -256,36 +228,30 @@
         {
             var swe = new SwissEph();
             double jd0 = ToJulianDayUT(localDate.Date); // UT JD for local midnight
-            double[] geopos = new double[] { longitude, latitude, 0 };
+            double[] geopos = new double[] { longitude, latitude, 0 }; // altitude meters if available
             double tret = 0;
             string serr = string.Empty;
             int epheflag = 0; // default Swiss Ephemeris
-            int rsmiRise = SwissEph.SE_CALC_RISE | SwissEph.SE_BIT_DISC_CENTER | SwissEph.SE_BIT_NO_REFRACTION;
-            int rsmiSet = SwissEph.SE_CALC_SET | SwissEph.SE_BIT_DISC_CENTER | SwissEph.SE_BIT_NO_REFRACTION;
 
-            int rc1 = swe.swe_rise_trans(jd0, SwissEph.SE_SUN, null, epheflag, rsmiRise, geopos, 0, 0, ref tret, ref serr);
-            if (rc1 < 0)
-            {
-                error += "Sunrise: " + serr + "\n";
-            }
-            else
-            {
+            // Use upper limb + standard refraction (no special bits)
+            int rsmiRise = SwissEph.SE_CALC_RISE;
+            int rsmiSet  = SwissEph.SE_CALC_SET;
+
+            // Standard atmosphere to match common portals
+            double atpress = 1013.25; // mbar
+            double attemp  = 15.0;    // °C
+
+            int rc1 = swe.swe_rise_trans(jd0, SwissEph.SE_SUN, null, epheflag, rsmiRise, geopos, atpress, attemp, ref tret, ref serr);
+            if (rc1 >= 0)
                 sunriseLocal = FromJulianDayUTToLocal(tret);
-            }
 
             tret = 0; serr = string.Empty;
-            int rc2 = swe.swe_rise_trans(jd0, SwissEph.SE_SUN, null, epheflag, rsmiSet, geopos, 0, 0, ref tret, ref serr);
-            if (rc2 < 0)
-            {
-                error += "Sunset: " + serr + "\n";
-            }
-            else
-            {
+            int rc2 = swe.swe_rise_trans(jd0, SwissEph.SE_SUN, null, epheflag, rsmiSet, geopos, atpress, attemp, ref tret, ref serr);
+            if (rc2 >= 0)
                 sunsetLocal = FromJulianDayUTToLocal(tret);
-            }
 
             swe.Dispose();
-            return string.IsNullOrEmpty(error);
+            return rc1 >= 0 && rc2 >= 0;
         }
         catch (Exception ex)
         {
@@ -301,25 +267,26 @@
         var localDate = now.Date; // local date used for schedule
 
         // Get precise sunrise and sunset for the date and next sunrise
-        _ = TryGetSunriseSunset(localDate, out var sunrise, out var sunset, out var err1);
-        _ = TryGetSunriseSunset(localDate.AddDays(1), out var nextSunrise, out var _, out var err2);
+        _ = TryGetSunriseSunset(localDate, out var sunrise, out var sunset, out var _);
+        _ = TryGetSunriseSunset(localDate.AddDays(1), out var nextSunrise, out var _, out var _2);
 
         // Fallbacks if needed
-        if (!string.IsNullOrEmpty(err1))
-        {
-            // keep default 6:00/18:00 if failed
+        if (sunrise == default)
             sunrise = localDate.AddHours(6);
+        if (sunset == default)
             sunset = localDate.AddHours(18);
-        }
-        if (!string.IsNullOrEmpty(err2))
-        {
+        if (nextSunrise == default)
             nextSunrise = localDate.AddDays(1).AddHours(6);
-        }
 
         if (nextSunrise <= sunset)
         {
             nextSunrise = nextSunrise.AddDays(1);
         }
+
+        // cache
+        sunriseCached = sunrise;
+        sunsetCached = sunset;
+        nextSunriseCached = nextSunrise;
 
         var dayDuration = sunset - sunrise;
         var nightDuration = nextSunrise - sunset;
@@ -349,7 +316,7 @@
             });
         }
 
-        // Continue sequence for night horas
+        // Night horas
         for (int i = 0; i < 12; i++)
         {
             int lordIndex = (startIndex + 12 + i) % VedicConstants.HoraLords.Length;
@@ -377,5 +344,98 @@
             horaStart = current.Start;
             horaEnd = current.End;
         }
+    }
+
+    // Compute Rahu Kaal, Yamagandam, Durmuhurtham, Vardhyam and Subha Samaya dynamically
+    void ComputeDayAuspiciousWindows()
+    {
+        // Require sunrise/sunset
+        var sunrise = sunriseCached == default ? now.Date.AddHours(6) : sunriseCached;
+        var sunset = sunsetCached == default ? now.Date.AddHours(18) : sunsetCached;
+
+        var dayLen = sunset - sunrise;
+        if (dayLen.TotalMinutes <= 0)
+        {
+            rahuKaal = yamaKaal = dhurmuhurtham = subhaSamaya = vardhyam = "N/A";
+            return;
+        }
+
+        // Segment the day into 8 equal parts
+        var octant = TimeSpan.FromTicks(dayLen.Ticks / 8);
+
+        // Standard segment indices (1..8) from sunrise
+        int dow = (int)now.DayOfWeek; // 0..6, 0=Sunday
+        int[] rahuIndex = [8, 2, 7, 5, 6, 4, 3];
+        int[] yamaIndex = [5, 4, 3, 2, 1, 7, 6];
+
+        // Rahu Kaal
+        var rkStart = sunrise.AddTicks(octant.Ticks * (rahuIndex[dow] - 1));
+        var rkEnd = rkStart.Add(octant);
+        rahuKaal = $"{rkStart:HH:mm}-{rkEnd:HH:mm}";
+
+        // Yama Kaal (Yamagandam)
+        var ygStart = sunrise.AddTicks(octant.Ticks * (yamaIndex[dow] - 1));
+        var ygEnd = ygStart.Add(octant);
+        yamaKaal = $"{ygStart:HH:mm}-{ygEnd:HH:mm}";
+
+        // Durmuhurtham (muhurta = 1/30th of day from sunrise)
+        var muhurta = TimeSpan.FromTicks(dayLen.Ticks / 30);
+        List<int[]> durmuhurtaMap = new()
+        {
+            new[]{16,21}, // Sunday
+            new[]{8,12},  // Monday
+            new[]{3,10},  // Tuesday
+            new[]{7},     // Wednesday
+            new[]{10,14}, // Thursday
+            new[]{6},     // Friday
+            new[]{13,20}  // Saturday
+        };
+        var dayDurMuh = durmuhurtaMap[dow];
+        List<string> durStrings = new();
+        foreach (var idx in dayDurMuh)
+        {
+            var s = sunrise.AddTicks(muhurta.Ticks * (idx - 1));
+            var e = s.Add(muhurta);
+            durStrings.Add($"{s:HH:mm}-{e:HH:mm}");
+        }
+        dhurmuhurtham = durStrings.Count == 0 ? "None" : string.Join(", ", durStrings);
+
+        // Vardhyam -> Abhijit Muhurta (1/15th of day centered at local solar noon)
+        var mid = sunrise + TimeSpan.FromTicks(dayLen.Ticks / 2);
+        var abhijitSpan = TimeSpan.FromTicks(dayLen.Ticks / 15);
+        var abhijitStart = mid - TimeSpan.FromTicks(abhijitSpan.Ticks / 2);
+        var abhijitEnd = abhijitStart.Add(abhijitSpan);
+        vardhyam = $"{abhijitStart:HH:mm}-{abhijitEnd:HH:mm}";
+
+        // Subha Samaya = Daytime excluding Rahu, Yama, Durmuhurtham windows
+        var blocked = new List<(DateTime s, DateTime e)> { (rkStart, rkEnd), (ygStart, ygEnd) };
+        foreach (var idx in dayDurMuh)
+        {
+            var s = sunrise.AddTicks(muhurta.Ticks * (idx - 1));
+            var e = s.Add(muhurta);
+            blocked.Add((s, e));
+        }
+        // merge overlaps
+        blocked = blocked.OrderBy(b => b.s).ToList();
+        var merged = new List<(DateTime s, DateTime e)>();
+        foreach (var b in blocked)
+        {
+            if (merged.Count == 0 || b.s > merged[^1].e)
+                merged.Add(b);
+            else
+                merged[^1] = (merged[^1].s, b.e > merged[^1].e ? b.e : merged[^1].e);
+        }
+        // compute complements inside [sunrise, sunset]
+        var subha = new List<string>();
+        DateTime cursor = sunrise;
+        foreach (var b in merged)
+        {
+            if (b.s > cursor)
+                subha.Add($"{cursor:HH:mm}-{b.s:HH:mm}");
+            if (b.e > cursor) cursor = b.e;
+        }
+        if (cursor < sunset)
+            subha.Add($"{cursor:HH:mm}-{sunset:HH:mm}");
+        subhaSamaya = subha.Count == 0 ? "None" : string.Join(", ", subha);
     }
 }
