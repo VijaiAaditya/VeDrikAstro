@@ -137,6 +137,11 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                <tr>
+                                    <td class="fw-bold">Lagna (Ascendant)</td>
+                                    <td>@lagnaRasi</td>
+                                    <td colspan="7"></td>
+                                </tr>
                                 @foreach (var planet in PlanetaryData)
                                 {
                                     <tr>
@@ -154,6 +159,44 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Hora Schedule Section -->
+                    @if (HoraSchedule != null && HoraSchedule.Any())
+                    {
+                        <div class="card mt-4">
+                            <div class="card-header bg-warning">
+                                <h6 class="mb-0">Hora Schedule (Sunrise to next Sunrise)</h6>
+                            </div>
+                            <div class="card-body">
+                                <small class="text-muted">@HoraNote</small>
+                                <div class="table-responsive mt-2">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Start</th>
+                                                <th>End</th>
+                                                <th>Lord</th>
+                                                <th>Day/Night</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var h in HoraSchedule)
+                                            {
+                                                <tr>
+                                                    <td>@h.Index</td>
+                                                    <td>@h.Start</td>
+                                                    <td>@h.End</td>
+                                                    <td><span class="badge bg-info">@h.Lord</span></td>
+                                                    <td>@(h.IsDay ? "Day" : "Night")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 }
                 else if (!string.IsNullOrEmpty(ErrorMessage))
                 {
@@ -197,6 +240,16 @@
         public string Declination { get; set; } = string.Empty;
     }
 
+    // Represents one Hora period
+    public class HoraPeriod
+    {
+        public int Index { get; set; }
+        public string Start { get; set; } = string.Empty;
+        public string End { get; set; } = string.Empty;
+        public string Lord { get; set; } = string.Empty;
+        public bool IsDay { get; set; }
+    }
+
     EphemerisInput Model = new EphemerisInput();
     string Result = string.Empty;
     string ErrorMessage = string.Empty;
@@ -208,11 +261,18 @@
     DateTime UtcDateTime;
     List<PlanetData> PlanetaryData = new List<PlanetData>();
 
+    // Hora output
+    List<HoraPeriod> HoraSchedule = new();
+    string HoraNote = string.Empty;
+
     private static readonly int[] PlanetIds = {
         SwissEph.SE_SUN, SwissEph.SE_MOON, SwissEph.SE_MERCURY, SwissEph.SE_VENUS, SwissEph.SE_MARS,
         SwissEph.SE_JUPITER, SwissEph.SE_SATURN, SwissEph.SE_URANUS, SwissEph.SE_NEPTUNE, SwissEph.SE_PLUTO,
         SwissEph.SE_MEAN_NODE, SwissEph.SE_MEAN_NODE // Rahu and Ketu (Mean Node)
     };
+
+    double lagnaLongitude = 0;
+    string lagnaRasi = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -363,12 +423,54 @@
         return utcDateTime;
     }
 
+    private string GetDayLordName(DateTime localDate)
+    {
+        // Map weekday to day lord
+        // Sunday..Saturday -> Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn
+        string[] dayLords = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
+        int idx = (int)localDate.DayOfWeek; // Sunday = 0
+        return dayLords[idx];
+    }
+
+    private void BuildHoraSchedule()
+    {
+        HoraSchedule.Clear();
+
+        // Local base date at 00:00 local
+        var localDate = new DateTime(Model.Year, Model.Month, Model.Day, 0, 0, 0);
+
+        // Assume sunrise at 06:00 and sunset at 18:00 local. 12 day + 12 night horas of 60 minutes each
+        var sunriseLocal = localDate.AddHours(6);
+
+        string dayLord = GetDayLordName(localDate);
+        int startIndex = Array.IndexOf(VedicConstants.HoraLords, dayLord);
+        if (startIndex < 0) startIndex = 0;
+
+        for (int i = 0; i < 24; i++)
+        {
+            int lordIndex = (startIndex + i) % VedicConstants.HoraLords.Length;
+            var start = sunriseLocal.AddHours(i);
+            var end = start.AddHours(1);
+            HoraSchedule.Add(new HoraPeriod
+            {
+                Index = i + 1,
+                Start = start.ToString("dd/MM HH:mm"),
+                End = end.ToString("dd/MM HH:mm"),
+                Lord = VedicConstants.HoraLords[lordIndex],
+                IsDay = i < 12
+            });
+        }
+
+        HoraNote = "Assuming sunrise at 06:00 local time with 12 day horas and 12 night horas (each 60 min).";
+    }
+
     private void Calculate()
     {
         try
         {
             ErrorMessage = string.Empty;
             PlanetaryData.Clear();
+            HoraSchedule.Clear();
 
             var sweph = new SwissEph();
 
@@ -388,6 +490,13 @@
 
             // Get ayanamsa value
             AyanamsaValue = sweph.swe_get_ayanamsa(JulianDay);
+
+            // Calculate Lagna (Ascendant)
+            double[] xxAsc = new double[6];
+            sweph.swe_calc(JulianDay, SwissEph.SE_ASC, SwissEph.SEFLG_SIDEREAL, xxAsc, ref serr);
+            lagnaLongitude = xxAsc[0];
+            int lagnaSign = (int)(lagnaLongitude / 30.0);
+            lagnaRasi = $"{VedicConstants.RasiNames[lagnaSign]} ({lagnaLongitude:F2}°)";
 
             // Calculate planetary positions
             int iflag = SwissEph.SEFLG_SIDEREAL | SwissEph.SEFLG_SPEED;
@@ -438,6 +547,9 @@
                     ErrorMessage += $"{planetName}: Error: {serr}\n";
                 }
             }
+
+            // Build Hora schedule for the day (local time)
+            BuildHoraSchedule();
 
             Result = "Calculation completed successfully";
             sweph.Dispose();
